@@ -2,14 +2,14 @@
 
 pragma solidity 0.8.7;
 
-import "./ERC721.sol";
 import "./Ownable.sol";
 import "./Address.sol";
 import "./SafeMath.sol";
 import "./Counters.sol";
 import "./PaymentSplitter.sol";
+import "./ERC721Enumerable.sol";
 
-contract TheUnespied is ERC721, Ownable, PaymentSplitter {
+contract TheUnespied is ERC721Enumerable, Ownable, PaymentSplitter {
     using SafeMath for uint256;
     using Counters for Counters.Counter;
     using Address for address;
@@ -153,24 +153,26 @@ contract TheUnespied is ERC721, Ownable, PaymentSplitter {
         }
     }
     
-    function viewOwned(address _address) external view returns(uint256[] memory) {
-        uint256 totalOwned = balanceOf(_address);
-        uint256[] memory IDs;
-        
-        for(uint256 i = 0; i < maxMint; i++) {
-            if(IDs.length == totalOwned) {
-                return IDs;
-            } else 
-            if(_address == ownerOf(i)) {
-                IDs[i] = i;
-            }
+    function viewOwned(address owner) external view returns(uint256[] memory) {
+        uint256 balance = balanceOf(owner);
+
+        uint256[] memory IDs = new uint256[](balance);
+        for(uint256 i; i < balance; i++){
+            IDs[i] = tokenOfOwnerByIndex(owner, i);
         }
-        
         return IDs;
     }
     
     function setBaseURI(string memory baseURI_) external onlyOwner {
         _baseURIextended = baseURI_;
+    }
+    
+    function viewThisContract() external view returns(address) {
+        return thisContract;
+    }
+    
+    function totalSupply() public view override returns(uint256) {
+        return _tokenIdCounter.current();
     }
     
     function calcPrice(uint256 _amount) public view returns(uint256) {
