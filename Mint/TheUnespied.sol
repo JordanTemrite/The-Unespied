@@ -171,6 +171,7 @@ contract TheUnespied is ERC721Enumerable, Ownable, PaymentSplitter {
         return thisContract;
     }
     
+    
     function totalSupply() public view override returns(uint256) {
         return _tokenIdCounter.current();
     }
