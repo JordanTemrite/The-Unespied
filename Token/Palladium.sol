@@ -41,15 +41,17 @@ contract Palladium is ERC20, Ownable {
     
     struct UnespiedIdentification {
         uint256 planetWorking;
-        uint256 palladiumRate;
-        uint256 secondaryRate;
+        uint256 previousPlanet;
+        uint256 faction;
         uint256 planetStartTime;
+        uint256 lastClaimed; 
     }
     
     struct Planets {
         uint256 palladiumRates;
         uint256 secondaryRates;
         uint256 controllingFaction;
+        uint256 contestingFaction;
     }
     
     struct Wormholes {
@@ -62,7 +64,6 @@ contract Palladium is ERC20, Ownable {
     struct PlanetWars {
         uint256 secondaryContribution;
         uint256 lastTimeSeiged;
-        uint256 rewardStartTime;
         uint256 rewardEndTime;
         bool currentlyContested;
     }
@@ -71,11 +72,19 @@ contract Palladium is ERC20, Ownable {
         
     }
     
+    
+    
+    
+    
     ////REMOVE BEFORE DEPLOYMENT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!///////////
     function mint() external onlyOwner {
         _mint(msg.sender, 1000000000000 * (10**18));
     }
     ////REMOVE BEFORE DEPOLOYMENT (ABOVE CODE)!!!!!!!!!!!!!!!!!!!!!!!////////////
+    
+    
+    
+    
     
     function updateAllCosts(uint256 _construction, uint256 _rebuild, uint256 _secondary) external onlyOwner {
         wormholeConstruction = _construction;
@@ -121,63 +130,63 @@ contract Palladium is ERC20, Ownable {
     }
     
     function buildWormhole(uint256 _planetID, uint256 _factionId, uint256 _amount) external {
-        require(factionWormholes[_factionId][_planetID].created == false, "WORMHOLE ALREADY BUILT");
+        require(factionWormholes[_planetID][_factionId].created == false, "WORMHOLE ALREADY BUILT");
         
         burnPalladium(msg.sender, _amount);
         
-        bool cValue = factionWormholes[_factionId][_planetID].palladiumContributed.add(_amount) > wormholeConstruction;
+        bool cValue = factionWormholes[_planetID][_factionId].palladiumContributed.add(_amount) > wormholeConstruction;
             
         if(cValue == false) {
-            factionWormholes[_factionId][_planetID].palladiumContributed = factionWormholes[_factionId][_planetID].palladiumContributed.add(_amount);
+            factionWormholes[_planetID][_factionId].palladiumContributed = factionWormholes[_planetID][_factionId].palladiumContributed.add(_amount);
         }
             
         if(cValue == true) {
-            uint256 wAmount = wormholeConstruction.sub(factionWormholes[_factionId][_planetID].palladiumContributed);
+            uint256 wAmount = wormholeConstruction.sub(factionWormholes[_planetID][_factionId].palladiumContributed);
             uint256 rAmount = _amount.sub(wAmount);
                 
-            factionWormholes[_factionId][_planetID].palladiumContributed = factionWormholes[_factionId][_planetID].palladiumContributed.add(wAmount);
+            factionWormholes[_planetID][_factionId].palladiumContributed = factionWormholes[_planetID][_factionId].palladiumContributed.add(wAmount);
                 
-            factionWormholes[_factionId][_planetID].repairContributed = factionWormholes[_factionId][_planetID].repairContributed.add(rAmount);
+            factionWormholes[_planetID][_factionId].repairContributed = factionWormholes[_planetID][_factionId].repairContributed.add(rAmount);
         }
         
-        if(factionWormholes[_factionId][_planetID].palladiumContributed == wormholeConstruction) {
-            factionWormholes[_factionId][_planetID].created = true;
-            factionWormholes[_factionId][_planetID].active = true;
+        if(factionWormholes[_planetID][_factionId].palladiumContributed >= wormholeConstruction) {
+            factionWormholes[_planetID][_factionId].created = true;
+            factionWormholes[_planetID][_factionId].active = true;
         }
     }
     
     function rebuildWormhole(uint256 _planetID, uint256 _factionId, uint256 _amount) external {
-        require(factionWormholes[_factionId][_planetID].created == true, "WORMHOLE NOT YET BUILT");
-        require(factionWormholes[_factionId][_planetID].active == false, "WORMHOLE IS NOT DEPLETED");
+        require(factionWormholes[_planetID][_factionId].created == true, "WORMHOLE NOT YET BUILT");
+        require(factionWormholes[_planetID][_factionId].active == false, "WORMHOLE IS NOT DEPLETED");
         
         burnPalladium(msg.sender, _amount);
         
-        bool cValue = factionWormholes[_factionId][_planetID].repairContributed.add(_amount) > wormholeRebuild;
+        bool cValue = factionWormholes[_planetID][_factionId].repairContributed.add(_amount) > wormholeRebuild;
         
         if(cValue == false) {
-            factionWormholes[_factionId][_planetID].repairContributed = factionWormholes[_factionId][_planetID].repairContributed.add(_amount);
+            factionWormholes[_planetID][_factionId].repairContributed = factionWormholes[_planetID][_factionId].repairContributed.add(_amount);
         }
         
         if(cValue == true) {
-            factionWormholes[_factionId][_planetID].repairContributed = factionWormholes[_factionId][_planetID].repairContributed.add(_amount);
-            factionWormholes[_factionId][_planetID].active = true;
-            factionWormholes[_factionId][_planetID].repairContributed = factionWormholes[_factionId][_planetID].repairContributed.sub(wormholeRebuild);
+            factionWormholes[_planetID][_factionId].repairContributed = factionWormholes[_planetID][_factionId].repairContributed.add(_amount);
+            factionWormholes[_planetID][_factionId].active = true;
+            factionWormholes[_planetID][_factionId].repairContributed = factionWormholes[_planetID][_factionId].repairContributed.sub(wormholeRebuild);
         }
     }
     
     function declareWar(uint256 _planetID, uint256 _factionId) external {
-        require(factionWormholes[_factionId][_planetID].active = true, "WORMHOLE IS NOT ACTIVE TO THIS PLANET");
+        require(factionWormholes[_planetID][_factionId].active = true, "WORMHOLE IS NOT ACTIVE TO THIS PLANET");
         uint256 wFaction = planets[_planetID].controllingFaction;
         require(block.timestamp >= warStats[_planetID][wFaction].lastTimeSeiged.add(warCooldown), "PLANET IS NOT YET ELIGIBLE FOR A WAR");
         
         if(planets[_planetID].controllingFaction == 0) {
             planets[_planetID].controllingFaction = _factionId;
-            warStats[_planetID][_factionId].rewardStartTime = block.timestamp;
         }
         
         if(planets[_planetID].controllingFaction != 0) {
             warStats[_planetID][_factionId].currentlyContested = true;
             warStats[_planetID][planets[_planetID].controllingFaction].currentlyContested = true;
+            planets[_planetID].contestingFaction = _factionId;
         }
         
     }
@@ -186,7 +195,7 @@ contract Palladium is ERC20, Ownable {
         require(warStats[_planetID][_factionId].currentlyContested = true, "WAR IS NOT ACTIVE ON THIS PLANET");
         require(secondaryOwned[msg.sender] >= _secondary, "INSUFFCIENT RESOURCES");
         
-        bool cAmount = warStats[_planetID][_factionId].secondaryContribution.add(_secondary) >= secondaryRequirement;
+        bool cAmount = warStats[_planetID][_factionId].secondaryContribution.add(_secondary) > secondaryRequirement;
         
         if(cAmount == false) {
             secondaryOwned[msg.sender] = secondaryOwned[msg.sender].sub(_secondary);
@@ -200,16 +209,91 @@ contract Palladium is ERC20, Ownable {
         }
         
         if(warStats[_planetID][_factionId].secondaryContribution >= secondaryRequirement) {
-            uint256 lFaction = planets[_planetID].controllingFaction;
-            
-            planets[_planetID].controllingFaction = _factionId;
-            warStats[_planetID][_factionId].rewardStartTime = block.timestamp;
-            warStats[_planetID][lFaction].rewardEndTime = block.timestamp;
-            warStats[_planetID][_factionId].currentlyContested = false;
-            warStats[_planetID][lFaction].currentlyContested = false;
-            factionWormholes[_planetID][lFaction].active = false;
-            warStats[_planetID][_factionId].lastTimeSeiged = block.timestamp;
+            if(_factionId == planets[_planetID].controllingFaction) {
+                uint256 lFaction = planets[_planetID].contestingFaction;
+                
+                warStats[_planetID][_factionId].currentlyContested = false;
+                warStats[_planetID][lFaction].currentlyContested = false;
+                factionWormholes[_planetID][lFaction].active = false;
+                warStats[_planetID][_factionId].lastTimeSeiged = block.timestamp;
+                planets[_planetID].contestingFaction = 0;
+                
+            } else 
+            if(_factionId != planets[_planetID].controllingFaction) {
+                uint256 lFaction = planets[_planetID].controllingFaction;
+                
+                planets[_planetID].controllingFaction = _factionId;
+                warStats[_planetID][lFaction].rewardEndTime = block.timestamp;
+                warStats[_planetID][_factionId].currentlyContested = false;
+                warStats[_planetID][lFaction].currentlyContested = false;
+                factionWormholes[_planetID][lFaction].active = false;
+                warStats[_planetID][_factionId].lastTimeSeiged = block.timestamp;
+                planets[_planetID].contestingFaction = 0;
+            }
         }
+    }
+    
+    function startMining(uint256 _tokenId, uint256 _factionId, uint256 _planetId) external {
+        require(IERC721(unespiedMinter).ownerOf(_tokenId) == msg.sender, "YOU DO NOT OWN THIS NFT");
+        
+        if(workPass[_tokenId].faction == 0) {
+            workPass[_tokenId].faction = _factionId;
+        }
+        
+        require(planets[_planetId].controllingFaction == _factionId, "YOUR FACTION DOES NOT CONTROL THIS PLANET");
+        
+        if(workPass[_tokenId].faction !=0) {
+            workPass[_tokenId].previousPlanet = workPass[_planetId].planetWorking;
+            workPass[_tokenId].planetWorking = _planetId;
+            workPass[_tokenId].planetStartTime = block.timestamp;
+        }
+    }
+    
+    function calculatePending(uint256 _tokenId) external view returns(uint256[] memory) {
+        uint256 cPlanet = workPass[_tokenId].planetWorking;
+        uint256 oPlanet = workPass[_tokenId].previousPlanet;
+        uint256 rEnd = warStats[cPlanet][workPass[_tokenId].faction].rewardEndTime;
+        uint256 sTime = workPass[_tokenId].planetStartTime;
+        uint256 lClaim = workPass[_tokenId].lastClaimed;
+        uint256[] memory rewardsDue;
+        
+        if(planets[cPlanet].controllingFaction != workPass[_tokenId].planetWorking) {
+            uint256 oReward;
+            uint256 cReward;
+            uint256 oSecond;
+            uint256 cSecond;
+            
+            oReward = planets[cPlanet].palladiumRates.mul(rEnd.sub(sTime)).div(86400);
+            cReward = planets[oPlanet].palladiumRates.mul(block.timestamp.sub(rEnd)).div(86400);
+            
+            oSecond = planets[cPlanet].secondaryRates.mul(rEnd.sub(sTime)).div(86400);
+            cSecond = planets[oPlanet].secondaryRates.mul(block.timestamp.sub(rEnd)).div(86400);
+            
+            rewardsDue[0] = oReward.add(cReward);
+            rewardsDue[1] = oSecond.add(cSecond);
+            
+            return rewardsDue;
+            
+        }
+        
+        if(lClaim == 0) {
+            rewardsDue[0] = planets[cPlanet].palladiumRates.mul(block.timestamp.sub(sTime)).div(86400);
+            rewardsDue[1] = planets[cPlanet].secondaryRates.mul(block.timestamp.sub(sTime)).div(86400);
+            
+            return rewardsDue;
+        } else
+        if(lClaim != 0) {
+            rewardsDue[0] = planets[cPlanet].palladiumRates.mul(block.timestamp.sub(lClaim)).div(86400);
+            rewardsDue[1] = planets[cPlanet].secondaryRates.mul(block.timestamp.sub(lClaim)).div(86400);
+            
+            return rewardsDue;
+        }
+        
+        return rewardsDue;
+    }
+    
+    function collectRewards() external {
+        
     }
     
     function transferSecondary(address _recipient, uint256 _amount) external {
