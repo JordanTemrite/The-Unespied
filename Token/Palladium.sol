@@ -108,25 +108,31 @@ contract Palladium is ERC20, Ownable {
         warCooldown = _newCooldown;
     }
     
-    function setAllPlanetRates(uint256[] calldata _planetID, uint256[] calldata _primary, uint256[] calldata _secondary) external onlyOwner {
-        require(_planetID.length == _primary.length && _planetID.length == _secondary.length, "INCORRECT DATA STRUCTURE PROVIDED");
+    function setAllPlanetRates(uint256[] calldata _planetID, uint256[] calldata _primary, uint256[] calldata _secondary, uint256[] calldata _factions) external onlyOwner {
+        require(_planetID.length == _primary.length && _planetID.length == _secondary.length && _planetID.length == _factions.length, "INCORRECT DATA STRUCTURE PROVIDED");
         
         for(uint256 i = 0; i < _planetID.length; i++) {
-            planets[_planetID[i]].palladiumRates = _primary[_primary[i]];
-            planets[_planetID[i]].secondaryRates = _secondary[_secondary[i]];
+            planets[_planetID[i]].palladiumRates = _primary[i];
+            planets[_planetID[i]].secondaryRates = _secondary[i];
+            planets[_planetID[i]].controllingFaction = _factions[i];
         }
         
     }
     
-    function setPlanetRates(uint256 _planetID, uint256 _primary, uint256 _secondary) external onlyOwner {
+    function setPlanetRates(uint256 _planetID, uint256 _primary, uint256 _secondary, uint256 _faction) external onlyOwner {
         planets[_planetID].palladiumRates = _primary;
         planets[_planetID].secondaryRates = _secondary;
+        planets[_planetID].controllingFaction = _faction;
     }
     
     function viewPlanetRates(uint256 _planetID) external view returns(uint256, uint256) {
         uint256 pRate = planets[_planetID].palladiumRates;
         uint256 sRate = planets[_planetID].secondaryRates;
         return (pRate, sRate);
+    }
+    
+    function setRewardState() external onlyOwner {
+        pauseRewards = !pauseRewards;
     }
     
     function buildWormhole(uint256 _planetID, uint256 _factionId, uint256 _amount) external {
@@ -233,7 +239,7 @@ contract Palladium is ERC20, Ownable {
         }
     }
     
-    function startMining(uint256 _tokenId, uint256 _factionId, uint256 _planetId) external {
+    function startMining(uint256 _tokenId, uint256 _factionId, uint256 _planetId) public {
         require(IERC721(unespiedMinter).ownerOf(_tokenId) == msg.sender, "YOU DO NOT OWN THIS NFT");
         
         if(workPass[_tokenId].faction == 0) {
@@ -248,14 +254,81 @@ contract Palladium is ERC20, Ownable {
             workPass[_tokenId].planetStartTime = block.timestamp;
         }
     }
+
+    function startMultis(uint256[] calldata _tokenIds, uint256[] calldata _factionIds, uint256[] calldata _planetIds ) external {
+        require(_tokenIds.length == _factionIds.length && _tokenIds.length == _planetIds.length, "INCORRECT DATA STRUCTURE PROVIDED");
+
+        for(uint256 i = 0; i < _tokenIds.length; i++) {
+            startMining(_tokenIds[i], _factionIds[i], _planetIds[i]);
+        }
+    }
     
-    function calculatePending(uint256 _tokenId) external view returns(uint256[] memory) {
+    function collectSingleReward(uint256 _tokenId) external {
+        require(IERC721(unespiedMinter).ownerOf(_tokenId) == msg.sender, "YOU DO NOT OWN THIS NFT");
+        require(pauseRewards == false, "REWARD CLAIMING IS PAUSED");
+        
+        uint256[] memory rewardsDue = calculatePending(_tokenId);
+        
+        workPass[_tokenId].lastClaimed = block.timestamp;
+        _mint(msg.sender, rewardsDue[0]);
+        secondaryOwned[msg.sender] = secondaryOwned[msg.sender].add(rewardsDue[1]);
+        
+    }
+    
+    function collectAllRewards(uint256[] memory _tokenIds) external {
+        
+        require(pauseRewards == false, "REWARD CLAIMING IS PAUSED");
+        
+        for(uint256 i = 0; i < _tokenIds.length; i++) {
+            require(IERC721(unespiedMinter).ownerOf(_tokenIds[i]) == msg.sender, "YOU DO NOT OWN THIS NFT");
+            
+            uint256[] memory rewardsDue = calculatePending(_tokenIds[i]);
+        
+            workPass[_tokenIds[i]].lastClaimed = block.timestamp;
+            _mint(msg.sender, rewardsDue[0]);
+            secondaryOwned[msg.sender] = secondaryOwned[msg.sender].add(rewardsDue[1]);
+        }
+    }
+    
+    function transferSecondary(address _recipient, uint256 _amount) external {
+        require(balanceOf(msg.sender) >= _amount);
+        
+        secondaryOwned[msg.sender] = secondaryOwned[msg.sender].sub(_amount);
+        secondaryOwned[_recipient] = secondaryOwned[_recipient].add(_amount);
+    }
+    
+    function setUnespiedMinter(address _minter) external onlyOwner {
+        unespiedMinter = _minter;
+    }
+    
+    function setApprovedStatus(address _address, bool _trueOrFalse) external onlyOwner {
+        approved[_address] = _trueOrFalse;
+    }
+    
+    function suffcientBalance(address _spender, uint256 _amount) external view returns(bool) {
+        return balanceOf(_spender) >= _amount;
+    }
+    
+    function burnPalladium(address _burner, uint256 _amount) public {
+        require(msg.sender == _burner || msg.sender == address(unespiedMinter) || approved[msg.sender] == true, "NOT PERMISSABLE FROM SELECTED ADDRESS");
+        require(balanceOf(_burner) >= _amount, "INSUFFCIENT PALLADIUM BALANCE");
+        
+        _burn(_burner, _amount);
+    }
+    
+    function calculatePending(uint256 _tokenId) public view returns(uint256[] memory) {
         uint256 cPlanet = workPass[_tokenId].planetWorking;
         uint256 oPlanet = workPass[_tokenId].previousPlanet;
         uint256 rEnd = warStats[cPlanet][workPass[_tokenId].faction].rewardEndTime;
         uint256 sTime = workPass[_tokenId].planetStartTime;
         uint256 lClaim = workPass[_tokenId].lastClaimed;
-        uint256[] memory rewardsDue;
+        uint256[] memory rewardsDue = new uint256[](2);
+        
+        if(cPlanet == 0) {
+            rewardsDue[0] = 0;
+            rewardsDue[1] = 0;
+            return rewardsDue;
+        }
         
         if(planets[cPlanet].controllingFaction != workPass[_tokenId].planetWorking) {
             uint256 oReward;
@@ -290,36 +363,6 @@ contract Palladium is ERC20, Ownable {
         }
         
         return rewardsDue;
-    }
-    
-    function collectRewards() external {
-        
-    }
-    
-    function transferSecondary(address _recipient, uint256 _amount) external {
-        require(balanceOf(msg.sender) >= _amount);
-        
-        secondaryOwned[msg.sender] = secondaryOwned[msg.sender].sub(_amount);
-        secondaryOwned[_recipient] = secondaryOwned[_recipient].add(_amount);
-    }
-    
-    function setUnespiedMinter(address _minter) external onlyOwner {
-        unespiedMinter = _minter;
-    }
-    
-    function setApprovedStatus(address _address, bool _trueOrFalse) external onlyOwner {
-        approved[_address] = _trueOrFalse;
-    }
-    
-    function suffcientBalance(address _spender, uint256 _amount) external view returns(bool) {
-        return balanceOf(_spender) >= _amount;
-    }
-    
-    function burnPalladium(address _burner, uint256 _amount) public {
-        require(msg.sender == _burner || msg.sender == address(unespiedMinter) || approved[msg.sender] == true, "NOT PERMISSABLE FROM SELECTED ADDRESS");
-        require(balanceOf(_burner) >= _amount, "INSUFFCIENT PALLADIUM BALANCE");
-        
-        _burn(_burner, _amount);
     }
     
 }
