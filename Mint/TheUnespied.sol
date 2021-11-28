@@ -9,6 +9,11 @@ import "./Counters.sol";
 import "./PaymentSplitter.sol";
 import "./ERC721Enumerable.sol";
 
+interface iPalladium {
+    function burnPalladium(address _burner, uint256 _amount) external;
+    function suffcientBalance(address _spender, uint256 _amount) external view returns(bool);
+}
+
 contract TheUnespied is ERC721Enumerable, Ownable, PaymentSplitter {
     using SafeMath for uint256;
     using Counters for Counters.Counter;
@@ -20,6 +25,8 @@ contract TheUnespied is ERC721Enumerable, Ownable, PaymentSplitter {
         string name;
         string bio;
     }
+    
+    iPalladium public Palladium;
     
     string private _baseURIextended;
     
@@ -56,6 +63,10 @@ contract TheUnespied is ERC721Enumerable, Ownable, PaymentSplitter {
     
     fallback() external payable {
         
+    }
+    
+    function setPalladium(address _palladium) external onlyOwner {
+        Palladium = iPalladium(_palladium);
     }
     
     function withdrawAll() external onlyOwner {
@@ -112,7 +123,9 @@ contract TheUnespied is ERC721Enumerable, Ownable, PaymentSplitter {
         bytes memory name = bytes(_name);
         require(name.length > 0 && name.length < 25, "NAME TOO LONG");
         require(sha256(name) != sha256(bytes(espyenData[_tokenId].name)), "SAME AS CURRENT NAME");
+        require(Palladium.suffcientBalance(msg.sender, nameChangePrice) == true, "INSUFFCIENT PALLADIUM BALANCE");
         
+        Palladium.burnPalladium(msg.sender, nameChangePrice);
         espyenData[_tokenId].name = _name;
         emit nameChanged(_tokenId, _name);
     }
@@ -120,7 +133,9 @@ contract TheUnespied is ERC721Enumerable, Ownable, PaymentSplitter {
     function changeBio(uint256 _tokenId, string memory _bio) external {
         
         require(msg.sender == ownerOf(_tokenId), "YOU DO NOT OWN THIS NFT");
+        require(Palladium.suffcientBalance(msg.sender, bioChangePrice) == true, "INSUFFCIENT PALLADIUM BALANCE");
         
+        Palladium.burnPalladium(msg.sender, bioChangePrice);
         espyenData[_tokenId].bio = _bio;
         emit bioChanged(_tokenId, _bio);
     }
