@@ -181,7 +181,7 @@ contract Palladium is ERC20, Ownable {
     }
     
     function declareWar(uint256 _planetID, uint256 _factionId) external {
-        require(factionWormholes[_planetID][_factionId].active = true, "WORMHOLE IS NOT ACTIVE TO THIS PLANET");
+        require(factionWormholes[_planetID][_factionId].active == true, "WORMHOLE IS NOT ACTIVE TO THIS PLANET");
         uint256 wFaction = planets[_planetID].controllingFaction;
         require(block.timestamp >= warStats[_planetID][wFaction].lastTimeSeiged.add(warCooldown), "PLANET IS NOT YET ELIGIBLE FOR A WAR");
         
