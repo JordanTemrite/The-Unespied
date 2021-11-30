@@ -137,6 +137,7 @@ contract Palladium is ERC20, Ownable {
     
     function buildWormhole(uint256 _planetID, uint256 _factionId, uint256 _amount) external {
         require(factionWormholes[_planetID][_factionId].created == false, "WORMHOLE ALREADY BUILT");
+        require(_planetID != 1 || _planetID != 2 || _planetID != 3 || _planetID != 0, "CANNOT ATTACK HOME PLANETS");
         
         burnPalladium(msg.sender, _amount);
         
