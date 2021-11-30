@@ -246,7 +246,7 @@ contract Palladium is ERC20, Ownable {
             workPass[_tokenId].faction = _factionId;
         }
         
-        require(planets[_planetId].controllingFaction == _factionId, "YOUR FACTION DOES NOT CONTROL THIS PLANET");
+        require(planets[_planetId].controllingFaction == workPass[_tokenId].faction, "YOUR FACTION DOES NOT CONTROL THIS PLANET");
         
         if(workPass[_tokenId].faction !=0) {
             workPass[_tokenId].previousPlanet = workPass[_planetId].planetWorking;
